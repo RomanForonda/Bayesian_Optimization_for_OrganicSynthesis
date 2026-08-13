@@ -1,0 +1,15 @@
+name: optimizer_env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+    - jupyter
+    - numpy==1.26.4 
+    - matplotlib==3.10.5 
+    - pandas==2.3.1 
+    - scikit-optimize==0.10.2  
+    - scikit-learn==1.7.1 
+    - botorch==0.14.0 
+    - baybe==0.13.2

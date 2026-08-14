@@ -1,5 +1,8 @@
+#Using categorical parameters (Solvent) + continuous parameters (Temperature and Time) to plot the landscape and the optimization progress.
+#Includes a simulated experiment function to generate yield values based on the parameters.
+
 from baybe import Campaign
-from baybe.parameters import NumericalContinuousParameter
+from baybe.parameters import (NumericalContinuousParameter, CategoricalParameter)
 from baybe.searchspace import SearchSpace
 from baybe.objectives import SingleTargetObjective
 from baybe.targets import NumericalTarget
@@ -21,12 +24,17 @@ time = NumericalContinuousParameter(
     bounds=(1, 24),
 )
 
+solvent = CategoricalParameter(
+    name="Solvent",
+    values=["DCM", "MeOH", "ACN"]
+)
+
 # ==========================================
 # 2. Define the search space
 # ==========================================
 
 searchspace = SearchSpace.from_product(
-    parameters=[temperature, time]
+    parameters=[temperature, time, solvent]
 )
 
 # ==========================================
@@ -59,15 +67,24 @@ campaign = Campaign(
 # 6. Simulated experiment
 # ==========================================
 
-def simulate_experiment(temperature, time):
+def simulate_experiment(temperature, time, solvent):
+
+    solvent_effects = {
+        "DCM": 5,
+        "MeOH": -10,
+        "ACN": 2,
+    }
 
     yield_value = (
         100
         - 0.02 * (temperature - 100) ** 2
         - 0.5 * (time - 12) ** 2
+        + solvent_effects[solvent]
     )
 
-    return max(0, yield_value)
+    noise = np.random.normal(0, 3)
+
+    return min(100, max(0, yield_value + noise))
 
 # ==========================================
 # 7. Store experimental results
@@ -87,11 +104,13 @@ for i in range(20):
 
     temperature_value = recommendation["Temperature"].iloc[0]
     time_value = recommendation["Time"].iloc[0]
+    solvent_value = recommendation["Solvent"].iloc[0]
 
     # Simulate experiment
     yield_value = simulate_experiment(
         temperature_value,
         time_value,
+        solvent_value
     )
 
     # Give result to BayBE
@@ -104,6 +123,7 @@ for i in range(20):
         "Experiment": i + 1,
         "Temperature": temperature_value,
         "Time": time_value,
+        "Solvent": solvent_value,
         "Yield": yield_value,
     })
 
@@ -111,134 +131,10 @@ for i in range(20):
         f"Experiment {i + 1:02d}: "
         f"Temperature = {temperature_value:.2f} °C, "
         f"Time = {time_value:.2f} h, "
+        f"Solvent = {solvent_value}, "
         f"Yield = {yield_value:.2f}%"
     )
 
 print("\n================ CAMPAIGN ================\n")
 print(campaign)
 
-# ==========================================
-# 9. Create the true Yield landscape
-# ==========================================
-
-temperatures = np.linspace(20, 150, 200)
-times = np.linspace(1, 24, 200)
-
-T, TIME = np.meshgrid(temperatures, times)
-
-YIELD = (
-    100
-    - 0.02 * (T - 100) ** 2
-    - 0.5 * (TIME - 12) ** 2
-)
-
-YIELD = np.maximum(0, YIELD)
-
-
-# ==========================================
-# 10. Plot the landscape
-# ==========================================
-
-plt.figure(figsize=(10, 7))
-
-contour = plt.contourf(
-    T,
-    TIME,
-    YIELD,
-    levels=30,
-)
-
-plt.colorbar(contour, label="Yield (%)")
-
-
-# ==========================================
-# 11. Plot BayBE experiments
-# ==========================================
-
-experiment_temperatures = [
-    result["Temperature"]
-    for result in results
-]
-
-experiment_times = [
-    result["Time"]
-    for result in results
-]
-
-plt.scatter(
-    experiment_temperatures,
-    experiment_times,
-    s=60,
-    edgecolor="black",
-    label="BayBE experiments",
-)
-
-
-# ==========================================
-# 12. Mark the true optimum
-# ==========================================
-
-plt.scatter(
-    100,
-    12,
-    marker="*",
-    s=250,
-    edgecolor="black",
-    label="True optimum",
-)
-
-
-# ==========================================
-# 13. Labels
-# ==========================================
-
-plt.xlabel("Temperature (°C)")
-plt.ylabel("Time (h)")
-
-plt.title("Bayesian Optimization of Temperature and Time")
-
-plt.legend()
-
-plt.tight_layout()
-
-plt.show()
-
-# ==========================================
-# 14. Best Yield found over time
-# ==========================================
-
-experiment_numbers = [
-    result["Experiment"]
-    for result in results
-]
-
-yields = [
-    result["Yield"]
-    for result in results
-]
-
-best_yields = np.maximum.accumulate(yields)
-
-
-# ==========================================
-# 15. Plot optimization progress
-# ==========================================
-
-plt.figure(figsize=(10, 6))
-
-plt.plot(
-    experiment_numbers,
-    best_yields,
-    marker="o",
-)
-
-plt.xlabel("Experiment")
-plt.ylabel("Best Yield found so far (%)")
-
-plt.title("Bayesian Optimization Progress")
-
-plt.grid(True)
-
-plt.tight_layout()
-
-plt.show()
